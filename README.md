@@ -1,7 +1,9 @@
 # Indoor/Outdoor Temperature Monitor
 
-Written for the Adafruit Matrix Portal M4 using CircuitPython
-https://www.adafruit.com/product/4745
+Written for the Adafruit Matrix Portal M4 using CircuitPython v7.X
+
+Matrix Portal: https://www.adafruit.com/product/4745
+CircuitPython: https://circuitpython.org/libraries
 
 It uses the BME680: https://www.adafruit.com/product/3660 for indoor temperature readings and https://openweathermap.org/ for outdoor temperature readings.
 

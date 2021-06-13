@@ -23,3 +23,7 @@ It uses the BME680: https://www.adafruit.com/product/3660 for indoor temperature
 		aio_username: # for Adafruit IO
 		aio_key: # for Adafruit IO
 	```
+
+### Adafruit IO additional information
+
+The code is written with hardcoded feeds of `outdoor-temp` and `indoor-temp-sensor`. Those should either be changed or set-up ahead of time to be able to submit the data to the Adafruit IO feeds.

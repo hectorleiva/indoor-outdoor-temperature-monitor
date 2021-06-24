@@ -85,7 +85,7 @@ def sensor_data_stringified(bme680, units):
     # gas = "{}%".format(bme680.gas)
     return str(temperature)
 
-def callWeatherAPI(token, lat, lng, units):
+def callWeatherAPI(token, lat, lng, units, last_weather_value):
     DATA_SOURCE = 'https://api.openweathermap.org/data/2.5/onecall?units={}&lat={}&lon={}&appid={}&exclude=minutely,hourly'.format(
         units,
         lat,
@@ -94,8 +94,13 @@ def callWeatherAPI(token, lat, lng, units):
     )
 
     print(DATA_SOURCE)
-    value = matrixportal.network.fetch_data(DATA_SOURCE, json_path=['current', 'temp'])
-    return value
+    try:
+        current_value = matrixportal.network.fetch_data(DATA_SOURCE, json_path=['current', 'temp'])
+        return parseForTemperature(current_value)
+    except:
+        print("There was an issue trying to get the last weather API value")
+    
+    return last_weather_value
 
 def parseForTemperature(weatherData):
     return int(weatherData[0])
@@ -169,8 +174,7 @@ while True:
 
     if NOW > NEXT_OUTDOOR_TEMP_SYNC:
         NEXT_OUTDOOR_TEMP_SYNC = NOW + (60 * 60) # Network call every hour
-        value = callWeatherAPI(OPENWEATHER_TOKEN, LATITUDE, LONGITUDE, OPENWEATHER_UNITS)
-        outdoor_temp = parseForTemperature(value)
+        outdoor_temp = callWeatherAPI(OPENWEATHER_TOKEN, LATITUDE, LONGITUDE, OPENWEATHER_UNITS, outdoor_temp)
 
     indoor_temp = sensor_data_stringified(bme680, OPENWEATHER_UNITS)
 

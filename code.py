@@ -110,7 +110,7 @@ def logDataToAdafruitIO(outdoor_temp, indoor_temp):
     matrixportal.push_to_io("indoor-temp-sensor", indoor_temp)
 
 def determineColorsForDisplay(outdoor_temp, indoor_temp, units):
-    if (type(outdoor_temp) is not int or float) or (type(indoor_temp) is not int or float):
+    if not (isinstance(outdoor_temp, int) or isinstance(outdoor_temp, float)) or not (isinstance(indoor_temp, int) or isinstance(indoor_temp, float)):
         return
 
     HOT_COLOR = 'd41c0f'
@@ -160,6 +160,7 @@ def writeTemperatureValuesToDisplay(outdoor_temp, indoor_temp):
 outdoor_temp = '??'
 indoor_temp = '??'
 NEXT_OUTDOOR_TEMP_SYNC = 0
+NEXT_ADAFRUIT_IO_SYNC = 0
 
 # Set-up Indoor Temperature Sensor
 i2c = I2C(board.SCL, board.SDA)
@@ -180,9 +181,10 @@ while True:
 
     writeTemperatureValuesToDisplay(outdoor_temp, indoor_temp)
 
-    determineColorsForDisplay(outdoor_temp, indoor_temp, OPENWEATHER_UNITS)
+    determineColorsForDisplay(int(outdoor_temp), int(indoor_temp), OPENWEATHER_UNITS)
 
-    logDataToAdafruitIO(outdoor_temp, indoor_temp)
+    if NOW > NEXT_ADAFRUIT_IO_SYNC:
+        NEXT_ADAFRUIT_IO_SYNC = NOW + (60 * 5) # Network call every 5 minutes
+        logDataToAdafruitIO(outdoor_temp, indoor_temp)
 
-    # Sleep for 5 minutes
-    time.sleep(60 * 5)
+    time.sleep(10) # wait 10 seconds

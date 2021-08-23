@@ -86,7 +86,7 @@ def sensor_data_stringified(bme680, units):
     return str(temperature)
 
 def callWeatherAPI(token, lat, lng, units, last_weather_value):
-    DATA_SOURCE = 'https://api.openweathermap.org/data/2.5/onecall?units={}&lat={}&lon={}&appid={}&exclude=minutely,hourly'.format(
+    DATA_SOURCE = 'https://api.openweathermap.org/data/2.5/onecall?units={}&lat={}&lon={}&appid={}&exclude=minutely,hourly,daily,alerts'.format(
         units,
         lat,
         lng,
@@ -97,8 +97,9 @@ def callWeatherAPI(token, lat, lng, units, last_weather_value):
     try:
         current_value = matrixportal.network.fetch_data(DATA_SOURCE, json_path=['current', 'temp'])
         return parseForTemperature(current_value)
-    except:
+    except Exception as e:
         print("There was an issue trying to get the last weather API value")
+        print(e);
     
     return last_weather_value
 
@@ -106,8 +107,11 @@ def parseForTemperature(weatherData):
     return int(weatherData[0])
 
 def logDataToAdafruitIO(outdoor_temp, indoor_temp):
-    matrixportal.push_to_io("outdoor-temp", outdoor_temp)
-    matrixportal.push_to_io("indoor-temp-sensor", indoor_temp)
+    try:
+        matrixportal.push_to_io("outdoor-temp", outdoor_temp)
+        matrixportal.push_to_io("indoor-temp-sensor", indoor_temp)
+    except:
+        print('there was an error with the matrixportal push_to_io')
 
 def determineColorsForDisplay(outdoor_temp, indoor_temp, units):
     if not (isinstance(outdoor_temp, int) or isinstance(outdoor_temp, float)) or not (isinstance(indoor_temp, int) or isinstance(indoor_temp, float)):
@@ -183,8 +187,8 @@ while True:
 
     determineColorsForDisplay(int(outdoor_temp), int(indoor_temp), OPENWEATHER_UNITS)
 
-    if NOW > NEXT_ADAFRUIT_IO_SYNC:
-        NEXT_ADAFRUIT_IO_SYNC = NOW + (60 * 5) # Network call every 5 minutes
-        logDataToAdafruitIO(outdoor_temp, indoor_temp)
+    # if NOW > NEXT_ADAFRUIT_IO_SYNC:
+    #     NEXT_ADAFRUIT_IO_SYNC = NOW + (60 * 5) # Network call every 5 minutes
+    #     logDataToAdafruitIO(outdoor_temp, indoor_temp)
 
     time.sleep(10) # wait 10 seconds

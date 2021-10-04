@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # Get temperature from sensor and temperature from OpenWeather and display it on the MatrixPortal
 
-import time
 import board
 import terminalio
+import time
 from adafruit_matrixportal.matrixportal import MatrixPortal
 
 from busio import I2C
@@ -16,6 +16,11 @@ try:
     SEALEVEL = secrets['sealevel']
     OPENWEATHER_TOKEN = secrets['openweather_token']
     OPENWEATHER_UNITS = secrets['openweather_units']
+
+    # To determine time using the Adafruit Time Service
+    TIMEZONE = secrets['timezone']
+    AIO_USERNAME = secrets['aio_username']
+    AIO_KEY = secrets['aio_key']
 except ImportError:
     print("WiFi secrets, Openweather API Tokens, and Latitude/Longitude values are kept in secrets.py, please add them!")
     raise
@@ -95,31 +100,35 @@ def callWeatherAPI(token, lat, lng, units, last_weather_value):
 
     print(DATA_SOURCE)
     try:
-        current_value = matrixportal.network.fetch_data(DATA_SOURCE, json_path=['current', 'temp'])
-        return parseForTemperature(current_value)
+        current_value = matrixportal.network.fetch_data(DATA_SOURCE, json_path=['current'])
+        return current_value[0] # this returns the weather data as an object
     except Exception as e:
         print("There was an issue trying to get the last weather API value")
         print(e);
     
     return last_weather_value
 
-def parseForTemperature(weatherData):
-    return int(weatherData[0])
+def callTimeService():
+    TIME_URL = "https://io.adafruit.com/api/v2/%s/integrations/time/strftime?x-aio-key=%s" % (AIO_USERNAME, AIO_KEY)
+    # See https://apidock.com/ruby/DateTime/strftime for full options
+    TIME_URL += "&fmt=%25s" # return date time data in UNIX timestamp
+    response = matrixportal.network.fetch_data(TIME_URL)
+    return int(response)
 
-def logDataToAdafruitIO(outdoor_temp, indoor_temp):
-    try:
-        matrixportal.push_to_io("outdoor-temp", outdoor_temp)
-        matrixportal.push_to_io("indoor-temp-sensor", indoor_temp)
-    except:
-        print('there was an error with the matrixportal push_to_io')
-
-def determineColorsForDisplay(outdoor_temp, indoor_temp, units):
+def determineColorsForDisplay(outdoor_temp, indoor_temp, units: str, unix_timestamp: int, weather_data_obj):
     if not (isinstance(outdoor_temp, int) or isinstance(outdoor_temp, float)) or not (isinstance(indoor_temp, int) or isinstance(indoor_temp, float)):
         return
 
-    HOT_COLOR = 'd41c0f'
-    NEUTRAL_COLOR = 'ffffff'
-    COLD_COLOR = '034eff'
+    SHOULD_DIM_DISPLAY = unix_timestamp > weather_data_obj['sunset'] or unix_timestamp < weather_data_obj['sunrise']
+
+    if (SHOULD_DIM_DISPLAY):
+        HOT_COLOR = '540b06'        # 6 shades darker than 'd41c0f'
+        NEUTRAL_COLOR = '4c4c4c'    # 7 shades darker than 'ffffff'
+        COLD_COLOR = '00174c'       # 7 shades darker than '034eff'
+    else:
+        HOT_COLOR = 'd41c0f'
+        NEUTRAL_COLOR = 'ffffff'
+        COLD_COLOR = '034eff'
 
     outdoor_display_assignments = [1,3,5]
     indoor_display_assignments = [0,2,4]
@@ -156,15 +165,15 @@ def determineColorsForDisplay(outdoor_temp, indoor_temp, units):
                 matrixportal.set_text_color(NEUTRAL_COLOR, i)
 
 
-def writeTemperatureValuesToDisplay(outdoor_temp, indoor_temp):
+def writeTemperatureValuesToDisplay(outdoor_temp: str, indoor_temp: str):
     matrixportal.set_text(indoor_temp, 4)
     matrixportal.set_text(outdoor_temp, 5)
 
 # Global Values
-outdoor_temp = '??'
+outdoor_temp_object = '??'
 indoor_temp = '??'
 NEXT_OUTDOOR_TEMP_SYNC = 0
-NEXT_ADAFRUIT_IO_SYNC = 0
+UNIX_TIMESTAMP_FROM_TIME_SERVICE = 0
 
 # Set-up Indoor Temperature Sensor
 i2c = I2C(board.SCL, board.SDA)
@@ -175,20 +184,17 @@ while True:
     NOW = time.time() # Current epoch time in seconds, UTC
 
     # Immediately write the values out to the display
-    writeTemperatureValuesToDisplay(outdoor_temp, indoor_temp)
+    writeTemperatureValuesToDisplay(outdoor_temp_object, indoor_temp)
 
     if NOW > NEXT_OUTDOOR_TEMP_SYNC:
         NEXT_OUTDOOR_TEMP_SYNC = NOW + (60 * 60) # Network call every hour
-        outdoor_temp = callWeatherAPI(OPENWEATHER_TOKEN, LATITUDE, LONGITUDE, OPENWEATHER_UNITS, outdoor_temp)
+        UNIX_TIMESTAMP_FROM_TIME_SERVICE = callTimeService()
+        outdoor_temp_object = callWeatherAPI(OPENWEATHER_TOKEN, LATITUDE, LONGITUDE, OPENWEATHER_UNITS, outdoor_temp_object)
 
     indoor_temp = sensor_data_stringified(bme680, OPENWEATHER_UNITS)
 
-    writeTemperatureValuesToDisplay(outdoor_temp, indoor_temp)
+    writeTemperatureValuesToDisplay(str(round(outdoor_temp_object['temp'])), indoor_temp)
 
-    determineColorsForDisplay(int(outdoor_temp), int(indoor_temp), OPENWEATHER_UNITS)
-
-    # if NOW > NEXT_ADAFRUIT_IO_SYNC:
-    #     NEXT_ADAFRUIT_IO_SYNC = NOW + (60 * 5) # Network call every 5 minutes
-    #     logDataToAdafruitIO(outdoor_temp, indoor_temp)
+    determineColorsForDisplay(int(outdoor_temp_object['temp']), int(indoor_temp), OPENWEATHER_UNITS, UNIX_TIMESTAMP_FROM_TIME_SERVICE, outdoor_temp_object)
 
     time.sleep(10) # wait 10 seconds

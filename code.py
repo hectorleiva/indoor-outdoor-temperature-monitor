@@ -185,9 +185,6 @@ bme680.sea_level_pressure = SEALEVEL
 while True:
     NOW = time.time() # Current epoch time in seconds, UTC
 
-    # Immediately write the values out to the display
-    writeTemperatureValuesToDisplay(outdoor_temp_object['temp'], indoor_temp)
-
     if NOW > NEXT_OUTDOOR_TEMP_SYNC:
         NEXT_OUTDOOR_TEMP_SYNC = NOW + (60 * 60) # Network call every hour
         UNIX_TIMESTAMP_FROM_TIME_SERVICE = callTimeService()

@@ -27,7 +27,8 @@ except ImportError:
 
 # --- Display setup ---
 matrixportal = MatrixPortal(
-    status_neopixel=board.NEOPIXEL
+    status_neopixel=board.NEOPIXEL,
+    bit_depth=4
 )
 
 # Create a static label
@@ -88,7 +89,7 @@ def sensor_data_stringified(bme680, units):
 
     # pressure = "%0.1fhPa" % bme680.pressure
     # gas = "{}%".format(bme680.gas)
-    return str(temperature)
+    return str(int(temperature))
 
 def callWeatherAPI(token, lat, lng, units, last_weather_value):
     DATA_SOURCE = 'https://api.openweathermap.org/data/2.5/onecall?units={}&lat={}&lon={}&appid={}&exclude=minutely,hourly,daily,alerts'.format(
@@ -115,20 +116,20 @@ def callTimeService():
     response = matrixportal.network.fetch_data(TIME_URL)
     return int(response)
 
-def determineColorsForDisplay(outdoor_temp, indoor_temp, units: str, unix_timestamp: int, weather_data_obj):
-    if not (isinstance(outdoor_temp, int) or isinstance(outdoor_temp, float)) or not (isinstance(indoor_temp, int) or isinstance(indoor_temp, float)):
-        return
+def determineColorsForDisplay(weather_data, indoor_temp: str, units: str, unix_timestamp: int):
+    outdoor_temp = int(weather_data['temp'])
+    indoor_temp = int(indoor_temp)
 
-    SHOULD_DIM_DISPLAY = unix_timestamp > weather_data_obj['sunset'] or unix_timestamp < weather_data_obj['sunrise']
+    SHOULD_DIM_DISPLAY = unix_timestamp > weather_data['sunset'] or unix_timestamp < weather_data['sunrise']
 
     if (SHOULD_DIM_DISPLAY):
-        HOT_COLOR = '540b06'        # 6 shades darker than 'd41c0f'
-        NEUTRAL_COLOR = '4c4c4c'    # 7 shades darker than 'ffffff'
-        COLD_COLOR = '00174c'       # 7 shades darker than '034eff'
+        HOT_COLOR = '#150201'        # 9 shades darker than 'd41c0f'
+        NEUTRAL_COLOR = '#191919'    # 9 shades darker than 'ffffff'
+        COLD_COLOR = '#000719'       # 9 shades darker than '034eff'
     else:
-        HOT_COLOR = 'd41c0f'
-        NEUTRAL_COLOR = 'ffffff'
-        COLD_COLOR = '034eff'
+        HOT_COLOR = '#d41c0f'
+        NEUTRAL_COLOR = '#ffffff'
+        COLD_COLOR = '#034eff'
 
     outdoor_display_assignments = [1,3,5]
     indoor_display_assignments = [0,2,4]
@@ -142,7 +143,7 @@ def determineColorsForDisplay(outdoor_temp, indoor_temp, units: str, unix_timest
             else:
                 matrixportal.set_text_color(NEUTRAL_COLOR, i)
         for i in indoor_display_assignments:
-            if indoor_temp > 80:
+            if indoor_temp > 83:
                 matrixportal.set_text_color(HOT_COLOR, i)
             elif indoor_temp < 50:
                 matrixportal.set_text_color(COLD_COLOR, i)
@@ -170,10 +171,8 @@ def writeTemperatureValuesToDisplay(outdoor_temp: str, indoor_temp: str):
     matrixportal.set_text(outdoor_temp, 5)
 
 # Global Values
-outdoor_temp_object = {
-    'temp': '??'
-}
-indoor_temp = '??'
+outdoor_temp_object = {}
+indoor_temp = ''
 NEXT_OUTDOOR_TEMP_SYNC = 0
 UNIX_TIMESTAMP_FROM_TIME_SERVICE = 0
 
@@ -181,6 +180,9 @@ UNIX_TIMESTAMP_FROM_TIME_SERVICE = 0
 i2c = I2C(board.SCL, board.SDA)
 bme680 = adafruit_bme680.Adafruit_BME680_I2C(i2c)
 bme680.sea_level_pressure = SEALEVEL
+
+# Initialized values
+writeTemperatureValuesToDisplay('la', 'Ho') # ¿Hola, como estas?
 
 while True:
     NOW = time.time() # Current epoch time in seconds, UTC
@@ -192,8 +194,8 @@ while True:
 
     indoor_temp = sensor_data_stringified(bme680, OPENWEATHER_UNITS)
 
-    writeTemperatureValuesToDisplay(str(round(outdoor_temp_object['temp'])), indoor_temp)
+    writeTemperatureValuesToDisplay(str(int(outdoor_temp_object['temp'])), indoor_temp)
 
-    determineColorsForDisplay(int(outdoor_temp_object['temp']), int(indoor_temp), OPENWEATHER_UNITS, UNIX_TIMESTAMP_FROM_TIME_SERVICE, outdoor_temp_object)
+    determineColorsForDisplay(outdoor_temp_object, indoor_temp, OPENWEATHER_UNITS, UNIX_TIMESTAMP_FROM_TIME_SERVICE)
 
-    time.sleep(10) # wait 10 seconds
+    time.sleep(20) # wait 20 seconds

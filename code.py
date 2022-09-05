@@ -97,7 +97,7 @@ def sensor_data_stringified(bme680, units):
 
     # pressure = "%0.1fhPa" % bme680.pressure
     # gas = "{}%".format(bme680.gas)
-    return str(int(temperature))
+    return temperature
 
 
 def callWeatherAPI(token, lat, lng, units):
@@ -228,4 +228,4 @@ while True:
     determineColorsForDisplay(outdoor_temp_object, indoor_temp,
                               OPENWEATHER_UNITS, UNIX_TIMESTAMP_FROM_TIME_SERVICE)
 
-    time.sleep(60)  # wait 1 minute
+    time.sleep(60 * 5)  # wait 5 minutes

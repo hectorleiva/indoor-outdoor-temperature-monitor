@@ -28,7 +28,7 @@ except ImportError:
 # --- Display setup ---
 matrixportal = MatrixPortal(
     status_neopixel=board.NEOPIXEL,
-    bit_depth=4
+    bit_depth=6
 )
 
 # Create a static label
@@ -124,6 +124,101 @@ def callTimeService():
     return int(response)
 
 
+def convertRGBArrayToHexString(colorRGBObj):
+    hexString = '#'
+    for colorVal in colorRGBObj:
+        hexString += '{:X}'.format(colorVal)
+    return hexString
+
+
+def fromToColorConverter(fromColorRGBArray, toColorRGBArray, stepVal):
+    newColorObj = {}
+
+    for index, fromColorVal in enumerate(fromColorRGBArray):
+        if (fromColorVal == toColorRGBArray[index]):
+            newColorObj[index] = toColorRGBArray[index]
+        elif (fromColorVal < toColorRGBArray[index] and (fromColorVal + stepVal) >= toColorRGBArray[index]):
+            newColorObj[index] = toColorRGBArray[index]  # destination reached
+        elif fromColorVal < toColorRGBArray[index]:
+            newColorObj[index] = fromColorVal + stepVal
+        else:
+            newColorObj[index] = fromColorVal - stepVal
+
+    newColorArray = (newColorObj[0], newColorObj[1], newColorObj[2])
+
+    return newColorArray
+
+
+TEMP_COLORS = ["HOT", "NEUTRAL", "COLD"]
+
+DAYTIME_COLORS = {
+    "HOT": (212, 28, 15),
+    "NEUTRAL": (255, 255, 255),
+    "COLD": (3, 78, 255)
+}
+
+NIGHTTIME_COLORS = {
+    "HOT": (21, 2, 1),
+    "NEUTRAL": (25, 25, 25),
+    "COLD": (0, 7, 25)
+}
+
+# Start with the colors being dim
+CURRENT_COLORS = NIGHTTIME_COLORS.copy()
+
+
+def allColorTempsMatch(currentColorObj, targetColorObj):
+    return all(currentColorObj[temp] == targetColorObj[temp] for (temp) in TEMP_COLORS)
+
+
+def setDisplayColorAssignments(outdoor_temp, indoor_temp, currentColorObj, units):
+    outdoor_display_assignments = [1, 3, 5]
+    indoor_display_assignments = [0, 2, 4]
+
+    if units is "imperial":
+        for i in outdoor_display_assignments:
+            if outdoor_temp > 89:
+                matrixportal.set_text_color(
+                    convertRGBArrayToHexString(currentColorObj["HOT"]), i)
+            elif outdoor_temp < 35:
+                matrixportal.set_text_color(
+                    convertRGBArrayToHexString(currentColorObj["COLD"]), i)
+            else:
+                matrixportal.set_text_color(
+                    convertRGBArrayToHexString(currentColorObj["NEUTRAL"]), i)
+        for i in indoor_display_assignments:
+            if indoor_temp > 83:
+                matrixportal.set_text_color(
+                    convertRGBArrayToHexString(currentColorObj["HOT"]), i)
+            elif indoor_temp < 50:
+                matrixportal.set_text_color(
+                    convertRGBArrayToHexString(currentColorObj["COLD"]), i)
+            else:
+                matrixportal.set_text_color(
+                    convertRGBArrayToHexString(currentColorObj["NEUTRAL"]), i)
+    else:
+        for i in outdoor_display_assignments:
+            if outdoor_temp > 31:
+                matrixportal.set_text_color(
+                    convertRGBArrayToHexString(currentColorObj["HOT"]), i)
+            elif outdoor_temp < 2:
+                matrixportal.set_text_color(
+                    convertRGBArrayToHexString(currentColorObj["COLD"]), i)
+            else:
+                matrixportal.set_text_color(
+                    convertRGBArrayToHexString(currentColorObj["NEUTRAL"]), i)
+        for i in indoor_display_assignments:
+            if indoor_temp > 26:
+                matrixportal.set_text_color(
+                    convertRGBArrayToHexString(currentColorObj["HOT"]), i)
+            elif indoor_temp < -2:
+                matrixportal.set_text_color(
+                    convertRGBArrayToHexString(currentColorObj["COLD"]), i)
+            else:
+                matrixportal.set_text_color(
+                    convertRGBArrayToHexString(currentColorObj["NEUTRAL"]), i)
+
+
 def determineColorsForDisplay(weather_data, indoor_temp: str, units: str, unix_timestamp: int):
     outdoor_temp = int(weather_data['temp'])
     indoor_temp = int(indoor_temp)
@@ -131,48 +226,30 @@ def determineColorsForDisplay(weather_data, indoor_temp: str, units: str, unix_t
     SHOULD_DIM_DISPLAY = unix_timestamp > weather_data[
         'sunset'] or unix_timestamp < weather_data['sunrise']
 
-    if (SHOULD_DIM_DISPLAY):
-        HOT_COLOR = '#150201'        # 9 shades darker than 'd41c0f'
-        NEUTRAL_COLOR = '#191919'    # 9 shades darker than 'ffffff'
-        COLD_COLOR = '#000719'       # 9 shades darker than '034eff'
-    else:
-        HOT_COLOR = '#d41c0f'
-        NEUTRAL_COLOR = '#ffffff'
-        COLD_COLOR = '#034eff'
+    while (SHOULD_DIM_DISPLAY and not allColorTempsMatch(CURRENT_COLORS, NIGHTTIME_COLORS)):
+        for temp in TEMP_COLORS:
+            CURRENT_COLORS[temp] = fromToColorConverter(
+                CURRENT_COLORS[temp], NIGHTTIME_COLORS[temp], 1)
 
-    outdoor_display_assignments = [1, 3, 5]
-    indoor_display_assignments = [0, 2, 4]
+        for i in TEMP_COLORS:
+            print("Current: {} matches Nighttime: {}: {}".format(
+                i, i, CURRENT_COLORS[i] == NIGHTTIME_COLORS[i]))
 
-    if units is "imperial":
-        for i in outdoor_display_assignments:
-            if outdoor_temp > 89:
-                matrixportal.set_text_color(HOT_COLOR, i)
-            elif outdoor_temp < 35:
-                matrixportal.set_text_color(COLD_COLOR, i)
-            else:
-                matrixportal.set_text_color(NEUTRAL_COLOR, i)
-        for i in indoor_display_assignments:
-            if indoor_temp > 83:
-                matrixportal.set_text_color(HOT_COLOR, i)
-            elif indoor_temp < 50:
-                matrixportal.set_text_color(COLD_COLOR, i)
-            else:
-                matrixportal.set_text_color(NEUTRAL_COLOR, i)
-    else:
-        for i in outdoor_display_assignments:
-            if outdoor_temp > 31:
-                matrixportal.set_text_color(HOT_COLOR, i)
-            elif outdoor_temp < 2:
-                matrixportal.set_text_color(COLD_COLOR, i)
-            else:
-                matrixportal.set_text_color(NEUTRAL_COLOR, i)
-        for i in indoor_display_assignments:
-            if indoor_temp > 26:
-                matrixportal.set_text_color(HOT_COLOR, i)
-            elif indoor_temp < -2:
-                matrixportal.set_text_color(COLD_COLOR, i)
-            else:
-                matrixportal.set_text_color(NEUTRAL_COLOR, i)
+        setDisplayColorAssignments(
+            outdoor_temp, indoor_temp, CURRENT_COLORS, units)
+        time.sleep(0.1)
+
+    while (not SHOULD_DIM_DISPLAY and not allColorTempsMatch(CURRENT_COLORS, DAYTIME_COLORS)):
+        for temp in TEMP_COLORS:
+            CURRENT_COLORS[temp] = fromToColorConverter(
+                CURRENT_COLORS[temp], DAYTIME_COLORS[temp], 1)
+
+        setDisplayColorAssignments(
+            outdoor_temp, indoor_temp, CURRENT_COLORS, units)
+        time.sleep(0.1)
+
+    setDisplayColorAssignments(
+        outdoor_temp, indoor_temp, CURRENT_COLORS, units)
 
 
 def writeTemperatureValuesToDisplay(outdoor_temp: str, indoor_temp: str):
@@ -182,7 +259,6 @@ def writeTemperatureValuesToDisplay(outdoor_temp: str, indoor_temp: str):
 
 def writeErrorOnDisplay(error: str):
     print(error)
-
     matrixportal.set_text(error, 6)
     matrixportal.set_text_color('#d41c0f', 6)
 
@@ -217,8 +293,8 @@ while True:
             outdoor_temp_object = callWeatherAPI(
                 OPENWEATHER_TOKEN, LATITUDE, LONGITUDE, OPENWEATHER_UNITS)
         except Exception as e:
-            print('openApi Error: ', e)
-            writeErrorOnDisplay('openApi')
+            print('weathAPI Error: ', e)
+            writeErrorOnDisplay('weathAPI')
 
     indoor_temp = sensor_data_stringified(bme680, OPENWEATHER_UNITS)
 

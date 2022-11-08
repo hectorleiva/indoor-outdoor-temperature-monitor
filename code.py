@@ -27,7 +27,6 @@ except ImportError:
 
 # --- Display setup ---
 matrixportal = MatrixPortal(
-    status_neopixel=board.NEOPIXEL,
     bit_depth=6
 )
 
